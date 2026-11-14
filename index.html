@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Forja</title>
+  <meta name="description" content="Registro personal de entrenamientos de gimnasio">
+  <meta name="theme-color" content="#121214">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Forja">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <main id="main"></main>
+    <div id="rest" hidden></div>
+    <div id="activebar" hidden></div>
+    <nav id="tabs"></nav>
+  </div>
+  <div id="sheet-wrap" hidden><div id="sheet-bg" data-a="close-sheet"></div><div id="sheet"></div></div>
+  <div id="toast" hidden></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+  <script src="app.js"></script>
+</body>
+</html>
