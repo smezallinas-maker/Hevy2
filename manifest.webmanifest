@@ -1,6 +1,6 @@
 {
-  "name": "Forja — registro de gimnasio",
-  "short_name": "Forja",
+  "name": "workoutracker",
+  "short_name": "workoutracker",
   "description": "Registra tus entrenamientos, rutinas y progreso en el gimnasio.",
   "lang": "es",
   "start_url": "./",

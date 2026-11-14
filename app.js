@@ -1,10 +1,11 @@
 'use strict';
 
 /* ============================================================
-   Forja — registro personal de entrenamientos
+   workoutracker — registro personal de entrenamientos
    Todo se guarda en el teléfono (localStorage). Sin servidor.
    ============================================================ */
 
+// Clave original: no cambiarla o se perderían los datos guardados en el teléfono
 const STORE_KEY = 'forja-data-v1';
 const MUSCLES = ['Pecho', 'Espalda', 'Piernas', 'Glúteos', 'Hombros', 'Bíceps', 'Tríceps', 'Abdomen', 'Cardio', 'Otro'];
 // type: 'peso' = kg × reps ; 'tiempo' = minutos + km
@@ -809,12 +810,12 @@ async function saveAsRoutine(wk) {
 }
 
 function exportData() {
-  const data = JSON.stringify({ app: 'forja', version: 1, exportedAt: new Date().toISOString(), ...db }, null, 2);
+  const data = JSON.stringify({ app: 'workoutracker', version: 1, exportedAt: new Date().toISOString(), ...db }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
-  const name = `forja-copia-${new Date().toISOString().slice(0, 10)}.json`;
+  const name = `workoutracker-copia-${new Date().toISOString().slice(0, 10)}.json`;
   const file = new File([blob], name, { type: 'application/json' });
   if (navigator.canShare?.({ files: [file] })) {
-    navigator.share({ files: [file], title: 'Copia de Forja' }).catch(() => {});
+    navigator.share({ files: [file], title: 'Copia de workoutracker' }).catch(() => {});
   } else download(blob, name);
 }
 function download(blob, name) {

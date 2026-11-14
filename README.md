@@ -1,4 +1,4 @@
-# Forja — registro de gimnasio
+# workoutracker — registro de gimnasio
 
 App personal para llevar el registro de tus entrenamientos. Funciona en el navegador del celular, se instala como una app y trabaja **sin internet**. Tus datos se guardan solo en tu teléfono.
 
