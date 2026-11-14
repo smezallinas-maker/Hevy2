@@ -287,3 +287,23 @@ body.has-rest #app { padding-bottom: calc(160px + var(--safe-b)); }
   box-shadow: 0 8px 28px rgba(0,0,0,.5); animation: drop .3s cubic-bezier(.2, .9, .25, 1);
 }
 @keyframes drop { from { transform: translate(-50%, -30px); opacity: 0; } }
+
+/* Esfuerzo por serie (RIR) */
+.set-num { line-height: 1.05; }
+.set-num small { display: block; font-size: 8.5px; font-weight: 600; color: var(--cyan); margin-top: 2px; letter-spacing: 0; white-space: nowrap; }
+.rir-ask { padding: 6px 4px 10px; font-size: 13px; color: var(--muted); animation: fade .2s; }
+.rir-opts { display: flex; gap: 6px; margin-top: 6px; }
+.rir-opts button { flex: 1; height: 36px; border-radius: 10px; background: var(--surface-2); font-family: var(--round); font-weight: 600; font-size: 17px; color: var(--cyan); }
+.rir-opts .skip { flex: none; width: 36px; background: none; color: var(--muted); font-size: 15px; }
+
+/* Sensación del entrenamiento */
+.feel { display: flex; gap: 6px; }
+.feel button { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; border-radius: 12px; background: var(--surface-2); font-size: 11px; color: var(--muted); }
+.feel .e { font-size: 26px; line-height: 1.1; filter: grayscale(1); opacity: .55; }
+.feel button.on { background: rgba(164, 245, 60, .18); color: var(--text); font-weight: 600; }
+.feel button.on .e { filter: none; opacity: 1; }
+.note-area { margin-top: 10px; background: var(--surface-2); min-height: 64px; resize: vertical; font-size: 16px; }
+
+/* Perfil */
+textarea.area { display: block; background: none; border-radius: 0; min-height: 84px; padding: 12px 16px; resize: vertical; font-size: 17px; }
+.field-cell .pill { flex: none; }

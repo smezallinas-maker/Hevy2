@@ -33,6 +33,11 @@ const DEFAULT_EXERCISES = [
   ['Remo (máquina)', 'Cardio', 'tiempo'], ['Escaladora', 'Cardio', 'tiempo'], ['Saltar la cuerda', 'Cardio', 'tiempo'],
 ];
 const TAB_TITLES = { entrenar: 'Entrenar', historial: 'Historial', ejercicios: 'Ejercicios', perfil: 'Resumen' };
+const GOALS = ['Ganar músculo', 'Ganar fuerza', 'Bajar grasa', 'Recomposición (músculo y grasa)', 'Salud y bienestar', 'Rendimiento deportivo'];
+const LEVELS = ['Principiante (menos de 1 año)', 'Intermedio (1 a 3 años)', 'Avanzado (más de 3 años)'];
+const SEXES = ['Hombre', 'Mujer', 'Prefiero no decir'];
+const EQUIP = ['Gimnasio completo', 'Gimnasio básico', 'En casa con mancuernas', 'Solo peso corporal'];
+const FEELS = [['😫', 'Muy mal'], ['😕', 'Mal'], ['😐', 'Normal'], ['🙂', 'Bien'], ['💪', 'Excelente']];
 
 /* ---------- helpers ---------- */
 const $ = (s) => document.querySelector(s);
@@ -85,7 +90,8 @@ function normalize(d) {
   d.routines = Array.isArray(d.routines) ? d.routines : [];
   d.workouts = Array.isArray(d.workouts) ? d.workouts : [];
   d.active = d.active || null;
-  d.settings = { rest: 90, sound: true, goal: 3, goalMin: 180, goalSets: 60, ...(d.settings || {}) };
+  d.settings = { rest: 90, sound: true, askRir: true, goal: 3, goalMin: 180, goalSets: 60, ...(d.settings || {}) };
+  d.profile = { ...(d.profile || {}) };
   const have = new Set(d.exercises.map((e) => e.id));
   DEFAULT_EXERCISES.forEach(([name, muscle, type], i) => {
     const id = 'ex' + i;
@@ -115,6 +121,8 @@ function setText(s, type) {
   }
   return num(s.w) ? `${fmtN(num(s.w))} kg × ${fmtN(num(s.r), 0)}` : `${fmtN(num(s.r), 0)} reps`;
 }
+/** Repeticiones en reserva (RIR) de una serie, si se registró */
+const rirTag = (s) => (s.rir != null ? `RIR ${s.rir >= 4 ? '4+' : s.rir}` : '');
 function workoutVolume(w) {
   let v = 0;
   w.exercises.forEach((e) => { if (!isTime(e.exerciseId)) e.sets.forEach((s) => { if (s.done !== false) v += num(s.w) * num(s.r); }); });
@@ -189,11 +197,12 @@ const ui = {
   draft: null,
   rest: null,
   anim: null,
+  askRir: null, // {ei, si}: serie a la que se le pregunta el esfuerzo
 };
 function go(screen) { ui.stack.push(screen); ui.anim = 'push'; render(); window.scrollTo(0, 0); }
 function back() { ui.stack.pop(); ui.anim = 'pop'; render(); window.scrollTo(0, 0); }
 
-const SCREEN_TITLES = { workout: 'Entrenamiento', detail: 'Resumen', exercise: 'Ejercicio', routine: 'Rutina' };
+const SCREEN_TITLES = { workout: 'Entrenamiento', detail: 'Resumen', exercise: 'Ejercicio', routine: 'Rutina', profile: 'Perfil' };
 function backLabel() {
   const prev = ui.stack[ui.stack.length - 2];
   return prev ? SCREEN_TITLES[prev.type] : TAB_TITLES[ui.tab];
@@ -250,6 +259,11 @@ function weekRingsCard() {
       <div style="margin:0"><span>Series</span><b class="c-cyan">${w.sets}/${st.goalSets}</b></div>
     </div></div>`;
 }
+function feelCard(w) {
+  return `<div class="card"><div class="xs muted" style="font-weight:600;margin-bottom:8px">¿CÓMO TE SENTISTE?</div>
+    <div class="feel">${FEELS.map(([e, l], i) => `<button class="${w.feel === i + 1 ? 'on' : ''}" data-a="feel" data-id="${w.id}" data-v="${i + 1}"><span class="e">${e}</span><span>${l}</span></button>`).join('')}</div>
+    <textarea class="note-area" data-in="wnotes" data-id="${w.id}" placeholder="Notas: sueño, energía, molestias…">${esc(w.notes || '')}</textarea></div>`;
+}
 const empty = (icon, title, text) => `<div class="empty">${icon}<b>${title}</b>${text}</div>`;
 const metric = (label, value, unit, color) => `<div class="metric"><span>${label}</span><b class="${color}">${value}${unit ? `<small>${unit}</small>` : ''}</b></div>`;
 
@@ -272,6 +286,10 @@ const TABS = {
       <div class="muted xs" style="margin:-10px 0 14px;text-transform:uppercase;font-weight:600">${esc(today)}</div>
       <h2 style="margin-top:0">Esta semana</h2>
       ${weekRingsCard()}
+      <div class="sec">Tú</div>
+      <div class="group">
+        <button class="cell" data-a="open-profile"><span class="grow"><div>Perfil y objetivo</div><div class="muted xs">${esc(db.profile.goal || 'Sin completar')}</div></span>${ICON.chev}</button>
+      </div>
       <h2>Tendencias</h2>
       <div class="metrics">
         ${metric('Entrenamientos', ws.length, '', 'c-pink')}
@@ -292,9 +310,12 @@ const TABS = {
         <label class="cell"><span class="grow">Descanso entre series</span>
           <select data-in="rest">${[0, 30, 45, 60, 90, 120, 150, 180, 240, 300].map((s) => `<option value="${s}" ${st.rest === s ? 'selected' : ''}>${s ? fmtClock(s * 1000) : 'No'}</option>`).join('')}</select>${ICON.chev}</label>
         <div class="cell"><span class="grow">Sonido y vibración</span><label class="switch"><input type="checkbox" data-in="sound" ${st.sound ? 'checked' : ''}><span></span></label></div>
+        <div class="cell"><span class="grow">Preguntar esfuerzo (RIR)</span><label class="switch"><input type="checkbox" data-in="askRir" ${st.askRir ? 'checked' : ''}><span></span></label></div>
       </div>
+      <div class="foot">RIR = repeticiones en reserva: cuántas más podías hacer al terminar la serie. Ayuda a tu entrenador a saber cuándo subir peso.</div>
       <div class="sec">Tus datos</div>
       <div class="group">
+        <button class="cell" data-a="coach-export"><span class="grow" style="color:var(--accent)">Exportar para mi entrenador</span></button>
         <button class="cell" data-a="export"><span class="grow" style="color:var(--accent)">Exportar copia de seguridad</span></button>
         <button class="cell" data-a="import"><span class="grow" style="color:var(--accent)">Importar copia</span></button>
         <button class="cell danger" data-a="reset"><span class="grow">Borrar todos los datos</span></button>
@@ -369,7 +390,7 @@ function workoutCard(w) {
         <div class="row" style="gap:14px;margin-top:2px;font-family:var(--round);font-weight:600">
           <span class="c-yellow">${fmtClock(w.end - w.start, true)}</span><span class="c-pink">${fmtN(workoutVolume(w), 0)} kg</span><span class="c-cyan">${workoutSets(w)} series</span>
         </div></div>${ICON.chev}</div>
-      <div class="muted xs" style="margin:8px 0 0 50px">${ex}${prs ? ` <span class="pr">· 🏆 ${prs}</span>` : ''}</div>
+      <div class="muted xs" style="margin:8px 0 0 50px">${ex}${prs ? ` <span class="pr">· 🏆 ${prs}</span>` : ''}${w.feel ? ` · ${FEELS[w.feel - 1][0]}` : ''}</div>
     </button>`;
 }
 function muscleSplit() {
@@ -443,6 +464,7 @@ const SCREENS = {
         ${metric('Series', workoutSets(w), '', 'c-cyan')}
         ${metric('Récords', n ? '🏆 ' + n : '0', '', 'c-green')}
       </div>
+      ${feelCard(w)}
       ${w.exercises.map((e) => {
         let k = 0; const type = exById(e.exerciseId)?.type;
         return `<div class="card">
@@ -451,7 +473,7 @@ const SCREENS = {
           ${e.sets.map((s, si) => {
             const lbl = s.t === 'c' ? 'C' : s.t === 'f' ? 'F' : ++k;
             const marks = prs[e.exerciseId]?.[si];
-            return `<div class="dset"><span class="n">${lbl}</span><span class="grow">${setText(s, type)}</span>${marks ? `<span class="pr xs">🏆 ${marks.join(' · ')}</span>` : ''}</div>`;
+            return `<div class="dset"><span class="n">${lbl}</span><span class="grow">${setText(s, type)}${rirTag(s) ? ` <span class="muted xs">· ${rirTag(s)}</span>` : ''}</span>${marks ? `<span class="pr xs">🏆 ${marks.join(' · ')}</span>` : ''}</div>`;
           }).join('')}
         </div>`;
       }).join('')}
@@ -505,8 +527,36 @@ const SCREENS = {
       ${[...sessions].reverse().map((s) => `
         <button class="card tap" data-a="open-detail" data-id="${s.id}">
           <div class="row between"><span class="muted xs" style="font-weight:600;text-transform:uppercase">${esc(fmtShort(s.date))}</span>${ICON.chev}</div>
-          ${s.sets.map((x, i) => `<div class="dset"><span class="n">${x.t === 'c' ? 'C' : x.t === 'f' ? 'F' : i + 1}</span><span>${setText(x, ex.type)}</span></div>`).join('')}
+          ${s.sets.map((x, i) => `<div class="dset"><span class="n">${x.t === 'c' ? 'C' : x.t === 'f' ? 'F' : i + 1}</span><span>${setText(x, ex.type)}${rirTag(x) ? ` <span class="muted xs">· ${rirTag(x)}</span>` : ''}</span></div>`).join('')}
         </button>`).join('')}`}`;
+  },
+
+  profile() {
+    const p = db.profile;
+    const sel = (key, opts, suffix = '') => `<select data-in="p:${key}"><option value="" ${!p[key] ? 'selected' : ''}>—</option>${opts.map((o) => `<option value="${esc(o)}" ${p[key] === o ? 'selected' : ''}>${esc(o)}${suffix}</option>`).join('')}</select>`;
+    const numIn = (key) => `<input type="text" inputmode="numeric" data-in="p:${key}" value="${esc(p[key] ?? '')}" placeholder="—">`;
+    return `
+      ${navBar({ title: 'Mi perfil', backBtn: true })}
+      <div class="muted small" style="margin:-6px 0 4px">Ayuda a tu entrenador a darte consejos a tu medida. Todo es opcional.</div>
+      <div class="sec">Objetivo</div>
+      <div class="group">
+        <label class="field-cell"><span class="grow">Objetivo principal</span>${sel('goal', GOALS)}${ICON.chev}</label>
+        <label class="field-cell"><span class="grow">Experiencia</span>${sel('level', LEVELS)}${ICON.chev}</label>
+        <label class="field-cell"><span class="grow">Días por semana</span>${sel('days', ['1', '2', '3', '4', '5', '6', '7'])}${ICON.chev}</label>
+        <label class="field-cell"><span class="grow">Minutos por sesión</span>${sel('mins', ['30', '45', '60', '75', '90', '120'], ' min')}${ICON.chev}</label>
+        <label class="field-cell"><span class="grow">Dónde entrenas</span>${sel('equip', EQUIP)}${ICON.chev}</label>
+      </div>
+      <div class="sec">Sobre ti</div>
+      <div class="group">
+        <label class="field-cell"><span class="grow">Edad</span>${numIn('age')}</label>
+        <label class="field-cell"><span class="grow">Sexo</span>${sel('sex', SEXES)}${ICON.chev}</label>
+        <label class="field-cell"><span class="grow">Estatura (cm)</span>${numIn('height')}</label>
+      </div>
+      <div class="sec">Lesiones o limitaciones</div>
+      <div class="group"><textarea class="area" data-in="p:injuries" placeholder="Ej. molestia en el hombro derecho con el press militar">${esc(p.injuries || '')}</textarea></div>
+      <div class="sec">Notas para tu entrenador</div>
+      <div class="group"><textarea class="area" data-in="p:notes" placeholder="Ej. quiero mejorar mi sentadilla, no me gusta el cardio, entreno de noche">${esc(p.notes || '')}</textarea></div>
+      <div class="foot">Tu peso, % de grasa e IMC no se registran aquí: compártelos con tu entrenador con el reporte de tu báscula.</div>`;
   },
 
   routine() {
@@ -548,19 +598,22 @@ function exerciseBlock(e, ei) {
         const pw = p ? fmtN(num(p.w)) : ''; const pr = p ? fmtN(num(p.r), 2) : '';
         return `
         <div class="set-grid set-row ${s.done ? 'done' : ''}">
-          <button class="set-num t-${s.t || 'n'}" data-a="set-menu" data-ei="${ei}" data-si="${si}">${lbl}</button>
+          <button class="set-num t-${s.t || 'n'}" data-a="set-menu" data-ei="${ei}" data-si="${si}">${lbl}${s.done && s.rir != null ? `<small>${rirTag(s)}</small>` : ''}</button>
           <button class="prev" data-a="fill-prev" data-ei="${ei}" data-si="${si}">${p ? esc(time ? setText(p, 'tiempo') : `${pw} × ${fmtN(num(p.r), 0)}`) : '—'}</button>
           <input class="num" inputmode="decimal" enterkeyhint="next" data-in="w" data-ei="${ei}" data-si="${si}" value="${esc(s.w)}" placeholder="${esc(pw)}">
           <input class="num" inputmode="${time ? 'decimal' : 'numeric'}" enterkeyhint="done" data-in="r" data-ei="${ei}" data-si="${si}" value="${esc(s.r)}" placeholder="${esc(pr)}">
           <button class="check" data-a="toggle-set" data-ei="${ei}" data-si="${si}" aria-label="Completar serie">${ICON.check}</button>
-        </div>`;
+        </div>${ui.askRir?.ei === ei && ui.askRir?.si === si && s.done && s.rir == null ? `
+        <div class="rir-ask"><span>¿Cuántas repeticiones más podías hacer?</span>
+          <div class="rir-opts">${[0, 1, 2, 3, 4].map((v) => `<button data-a="rir" data-ei="${ei}" data-si="${si}" data-v="${v}">${v === 4 ? '4+' : v}</button>`).join('')}
+          <button class="skip" data-a="rir-skip" aria-label="Omitir">✕</button></div></div>` : ''}`;
       }).join('')}
       <button class="add-set" data-a="add-set" data-ei="${ei}">+ Agregar serie</button>
     </div>`;
 }
 
 /* ---------- gráficos (SVG) ---------- */
-function lineChart(pts, unit) {
+function lineChart(pts, unit, label = 'ÚLTIMA SESIÓN') {
   pts = pts.filter((p) => p.y > 0);
   if (pts.length < 2) return '<div class="muted small" style="text-align:center;padding:24px 8px">Registra al menos 2 sesiones para ver tu progreso.</div>';
   const W = 340, H = 180, L = 6, R = 36, T = 12, B = 22;
@@ -574,7 +627,7 @@ function lineChart(pts, unit) {
   const ticks = [0, 0.5, 1].map((f) => y0 + f * (y1 - y0));
   const d = (ts) => new Date(ts).toLocaleDateString('es', { day: 'numeric', month: 'short' });
   const last = pts[pts.length - 1];
-  return `<div class="muted xs" style="font-weight:600">ÚLTIMA SESIÓN</div>
+  return `<div class="muted xs" style="font-weight:600">${esc(label)}</div>
     <div style="font-family:var(--round);font-size:28px;font-weight:600" class="c-green">${fmtN(last.y)}<small style="font-size:16px"> ${esc(unit.toUpperCase())}</small></div>
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico de progreso">
     <defs><linearGradient id="gfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a4f53c" stop-opacity=".35"/><stop offset="1" stop-color="#a4f53c" stop-opacity="0"/></linearGradient></defs>
@@ -762,7 +815,7 @@ async function finishWorkout() {
   const fin = {
     id: w.id, name: (w.name || '').trim() || defaultName(), start: w.start, end: Date.now(), routineId: w.routineId,
     exercises: w.exercises.map((e) => {
-      const out = { exerciseId: e.exerciseId, sets: e.sets.filter((s) => s.done).map((s) => ({ w: num(s.w), r: num(s.r), t: s.t || 'n' })) };
+      const out = { exerciseId: e.exerciseId, sets: e.sets.filter((s) => s.done).map((s) => ({ w: num(s.w), r: num(s.r), t: s.t || 'n', ...(s.rir != null ? { rir: s.rir } : {}) })) };
       if (e.note) out.note = e.note;
       return out;
     }).filter((e) => e.sets.length),
@@ -780,12 +833,13 @@ async function discardWorkout(skipConfirm) {
 
 function toggleSet(ei, si) {
   const e = db.active.exercises[ei]; const s = e.sets[si];
-  if (s.done) { s.done = false; save(); render(); return; }
+  if (s.done) { s.done = false; delete s.rir; ui.askRir = null; save(); render(); return; }
   const ref = previousSets(e.exerciseId)[si] || e.sets[si - 1];
   if (s.w === '' && ref) s.w = String(ref.w || '');
   if (s.r === '' && ref) s.r = String(ref.r || '');
   if (!num(s.w) && !num(s.r)) { toast(isTime(e.exerciseId) ? 'Ingresa los minutos' : 'Ingresa las repeticiones'); return; }
   s.done = true; haptic();
+  ui.askRir = db.settings.askRir && s.t !== 'c' && !isTime(e.exerciseId) ? { ei, si } : null;
   if (s.t !== 'c' && !isTime(e.exerciseId)) startRest(db.settings.rest); else if (s.t === 'c') startRest(Math.min(60, db.settings.rest));
   save(); render();
 }
@@ -818,6 +872,103 @@ function exportData() {
     navigator.share({ files: [file], title: 'Copia de workoutracker' }).catch(() => {});
   } else download(blob, name);
 }
+/* ---------- reporte para el entrenador (texto claro, listo para pegar en Claude) ---------- */
+function coachReport() {
+  const p = db.profile; const L = [];
+  const iso = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const day = (ts) => `${iso(ts)} (${new Date(ts).toLocaleDateString('es', { weekday: 'short' })})`;
+  const oneLine = (s) => String(s).trim().replace(/\s*\n+\s*/g, ' ');
+  const setStr = (s, type) => {
+    const pre = s.t === 'c' ? 'C ' : s.t === 'f' ? 'F ' : '';
+    const base = type === 'tiempo' ? setText(s, 'tiempo') : (num(s.w) ? `${fmtN(num(s.w))}×${fmtN(num(s.r), 0)}` : `${fmtN(num(s.r), 0)} reps`);
+    return pre + base + (s.rir != null ? ` (${rirTag(s)})` : '');
+  };
+  const bestOf = (sets) => sets.filter((x) => x.t !== 'c').sort((a, b) => e1rm(num(b.w), num(b.r)) - e1rm(num(a.w), num(a.r)))[0] || sets[0];
+
+  L.push('# Mi registro de entrenamiento (workoutracker)', `Generado el ${day(Date.now())}. Pesos en kg.`, '');
+
+  L.push('## Perfil');
+  const prof = [['Objetivo', p.goal], ['Experiencia', p.level], ['Edad', p.age && `${p.age} años`], ['Sexo', p.sex],
+    ['Estatura', p.height && `${p.height} cm`], ['Disponibilidad', p.days && `${p.days} días por semana`],
+    ['Duración por sesión', p.mins && `${p.mins} min`], ['Dónde entrena', p.equip],
+    ['Lesiones o limitaciones', p.injuries], ['Notas para el entrenador', p.notes]].filter(([, v]) => v && String(v).trim());
+  L.push(...(prof.length ? prof.map(([k, v]) => `- ${k}: ${oneLine(v)}`) : ['- (Sin completar)']), '');
+
+  L.push('## Composición corporal', '- No se registra en esta app. El peso, el % de grasa, el IMC y demás medidas vienen en el reporte aparte de la báscula (Femmto); crúzalo con las fechas de este registro.', '');
+
+  const ws = [...db.workouts].sort((a, b) => a.start - b.start);
+  if (!ws.length) { L.push('Aún no hay entrenamientos registrados.'); return L.join('\n'); }
+
+  L.push('## Resumen semanal (últimas 12 semanas)', '| Semana (lunes) | Entrenos | Minutos | Series | Volumen (kg) |', '|---|---|---|---|---|');
+  const w0 = startOfWeek(Date.now());
+  for (let i = 11; i >= 0; i--) {
+    const s = w0 - i * 7 * 864e5;
+    if (s + 7 * 864e5 <= ws[0].start) continue; // sin semanas vacías antes del primer entrenamiento
+    const wk = ws.filter((w) => w.start >= s && w.start < s + 7 * 864e5);
+    L.push(`| ${iso(s)} | ${wk.length} | ${Math.round(wk.reduce((t, w) => t + (w.end - w.start), 0) / 60000)} | ${wk.reduce((n, w) => n + workoutSets(w), 0)} | ${fmtN(wk.reduce((v, w) => v + workoutVolume(w), 0), 0)} |`);
+  }
+  L.push(`Total: ${ws.length} entrenamientos desde ${day(ws[0].start)}. Meta semanal: ${db.settings.goal} entrenamientos.`, '');
+
+  const cnt = {};
+  ws.filter((w) => w.start >= Date.now() - 28 * 864e5).forEach((w) => w.exercises.forEach((e) => {
+    const m = exById(e.exerciseId)?.muscle || 'Otro'; cnt[m] = (cnt[m] || 0) + e.sets.filter((s) => s.t !== 'c').length;
+  }));
+  if (Object.keys(cnt).length) {
+    L.push('## Series efectivas por músculo (últimas 4 semanas, sin calentamiento)');
+    Object.entries(cnt).sort((a, b) => b[1] - a[1]).forEach(([m, n]) => L.push(`- ${m}: ${n} (≈${fmtN(n / 4)} por semana)`));
+    L.push('');
+  }
+
+  const byEx = {};
+  ws.forEach((w) => w.exercises.forEach((e) => { (byEx[e.exerciseId] ||= []).push({ date: w.start, sets: e.sets }); }));
+  L.push('## Progreso por ejercicio');
+  Object.entries(byEx).sort((a, b) => b[1].length - a[1].length).forEach(([id, ss]) => {
+    const ex = exById(id);
+    L.push(`### ${exName(id)} (${ex?.muscle || '—'}) · ${ss.length} ${ss.length > 1 ? 'sesiones' : 'sesión'}`);
+    if (ex?.type === 'tiempo') {
+      L.push(`- Recientes: ${ss.slice(-8).map((s) => `${iso(s.date)} ${s.sets.map((x) => setText(x, 'tiempo')).join(' + ')}`).join(' · ')}`);
+      return;
+    }
+    let best = null;
+    ss.forEach((s) => s.sets.forEach((x) => { if (x.t === 'c') return; const v = e1rm(num(x.w), num(x.r)); if (!best || v > best.v) best = { v, x, date: s.date }; }));
+    if (best?.v) L.push(`- Mejor serie: ${setStr(best.x)} el ${iso(best.date)} (1RM estimado ${fmtN(best.v)} kg)`);
+    L.push(`- Mejor serie de cada sesión (recientes): ${ss.slice(-8).map((s) => `${iso(s.date)} ${setStr(bestOf(s.sets))}`).join(' · ')}`);
+  });
+  L.push('');
+
+  const recent = ws.filter((w) => w.start >= Date.now() - 56 * 864e5);
+  L.push(`## Detalle de entrenamientos (últimas 8 semanas: ${recent.length})`);
+  recent.forEach((w) => {
+    L.push('', `### ${day(w.start)} · ${w.name} · ${Math.round((w.end - w.start) / 60000)} min${w.feel ? ` · Sensación ${w.feel}/5 (${FEELS[w.feel - 1][1]})` : ''}`);
+    if (w.notes && w.notes.trim()) L.push(`Notas: ${oneLine(w.notes)}`);
+    w.exercises.forEach((e) => {
+      const type = exById(e.exerciseId)?.type;
+      L.push(`- ${exName(e.exerciseId)}: ${e.sets.map((s) => setStr(s, type)).join(', ')}${e.note ? ` (nota: ${oneLine(e.note)})` : ''}`);
+    });
+  });
+
+  L.push('', '## Leyenda',
+    '- Series en formato kg×repeticiones. C = calentamiento, F = al fallo.',
+    '- RIR = repeticiones en reserva (cuántas más podía hacer). RIR 0 = al fallo. Si no aparece, no se anotó.',
+    '- 1RM estimado con la fórmula de Epley. Volumen = kg × repeticiones (sin ejercicios de tiempo).',
+    '- Sensación: 1 = muy mal, 5 = excelente.');
+  return L.join('\n');
+}
+function coachExport() {
+  const text = coachReport();
+  const name = `workoutracker-entrenador-${new Date().toISOString().slice(0, 10)}.md`;
+  openSheet({ type: 'menu', title: 'Exportar para mi entrenador', items: [
+    { label: 'Compartir archivo', run: () => {
+      const file = new File([text], name, { type: 'text/plain' });
+      if (navigator.canShare?.({ files: [file] })) navigator.share({ files: [file], title: 'Mi registro de entrenamiento' }).catch(() => {});
+      else download(new Blob([text], { type: 'text/plain' }), name);
+    } },
+    { label: 'Copiar texto', run: async () => {
+      try { await navigator.clipboard.writeText(text); toast('Copiado: pégalo en tu chat con Claude'); } catch { toast('No se pudo copiar'); }
+    } },
+  ] });
+}
+
 function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -878,6 +1029,15 @@ document.addEventListener('click', async (ev) => {
       save(); render(); break;
     }
     case 'toggle-set': toggleSet(ei, si); break;
+    case 'rir': { const s = w.exercises[ei].sets[si]; s.rir = +d.v; ui.askRir = null; haptic(); save(); render(); break; }
+    case 'rir-skip': ui.askRir = null; render(); break;
+    case 'open-profile': go({ type: 'profile' }); break;
+    case 'feel': {
+      const wk = db.workouts.find((x) => x.id === d.id);
+      if (wk.feel === +d.v) delete wk.feel; else wk.feel = +d.v;
+      haptic(); save(); render(); break;
+    }
+    case 'coach-export': coachExport(); break;
     case 'fill-prev': {
       const p = previousSets(w.exercises[ei].exerciseId)[si];
       if (p) { const s = w.exercises[ei].sets[si]; s.w = String(p.w || ''); s.r = String(p.r || ''); save(); render(); }
@@ -886,12 +1046,14 @@ document.addEventListener('click', async (ev) => {
     case 'set-menu': {
       const s = w.exercises[ei].sets[si];
       const setType = (t) => () => { s.t = t; save(); render(); };
-      openSheet({ type: 'menu', title: `Serie ${si + 1}`, items: [
+      const items = [
         { label: (s.t === 'n' || !s.t ? '✓ ' : '') + 'Serie normal', run: setType('n') },
         { label: (s.t === 'c' ? '✓ ' : '') + 'Calentamiento', run: setType('c') },
         { label: (s.t === 'f' ? '✓ ' : '') + 'Al fallo', run: setType('f') },
-        { label: 'Eliminar serie', danger: true, run: () => { w.exercises[ei].sets.splice(si, 1); save(); render(); } },
-      ] });
+      ];
+      if (s.done && !isTime(w.exercises[ei].exerciseId)) items.push({ label: s.rir != null ? `Cambiar esfuerzo (${rirTag(s)})` : 'Anotar esfuerzo (RIR)', run: () => { delete s.rir; ui.askRir = { ei, si }; save(); render(); } });
+      items.push({ label: 'Eliminar serie', danger: true, run: () => { w.exercises[ei].sets.splice(si, 1); ui.askRir = null; save(); render(); } });
+      openSheet({ type: 'menu', title: `Serie ${si + 1}`, items });
       break;
     }
     case 'ex-menu': {
@@ -1030,6 +1192,14 @@ document.addEventListener('input', (ev) => {
     case 'pickq': ui.sheet.q = el.value; $('#picklist').innerHTML = exerciseList(ui.sheet.q, ui.sheet.m, ui.sheet.sel); break;
     case 'rest': db.settings.rest = +el.value; save(); break;
     case 'sound': db.settings.sound = el.checked; save(); break;
+    case 'askRir': db.settings.askRir = el.checked; save(); break;
+    case 'wnotes': { const wk = db.workouts.find((x) => x.id === el.dataset.id); if (wk) { wk.notes = el.value; saveSoon(); } break; }
+    default:
+      if (k.startsWith('p:')) {
+        const key = k.slice(2); let v = el.value;
+        if (key === 'age' || key === 'height') { v = v.replace(/\D/g, '').slice(0, 3); if (el.value !== v) el.value = v; }
+        db.profile[key] = v; saveSoon();
+      }
   }
 });
 document.addEventListener('change', (ev) => {
