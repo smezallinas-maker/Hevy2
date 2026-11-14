@@ -1,6 +1,6 @@
 // Cache de la app para que funcione sin conexión en el gimnasio.
 // Sube el número de versión cada vez que cambies archivos de la app.
-const CACHE = 'forja-v1';
+const CACHE = 'forja-v2';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
