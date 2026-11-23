@@ -273,8 +273,8 @@ function monthDaysTrained(days, year, month) {
   for (let d = 1; d <= total; d++) if (days.has(`${year}-${month}-${d}`)) n++;
   return n;
 }
-/** Cuadrícula de un mes (lunes a domingo). numbers: mostrar el número del día; tappable: los días entrenados abren el entrenamiento */
-function monthGrid(year, month, days, { numbers = false, tappable = false } = {}) {
+/** Cuadrícula de un mes (lunes a domingo). numbers: mostrar el número del día; tappable: los días entrenados abren el entrenamiento; tiny: versión miniatura */
+function monthGrid(year, month, days, { numbers = false, tappable = false, tiny = false } = {}) {
   const offset = (new Date(year, month, 1).getDay() + 6) % 7;
   const total = new Date(year, month + 1, 0).getDate();
   const todayK = dayKey(Date.now());
@@ -287,17 +287,74 @@ function monthGrid(year, month, days, { numbers = false, tappable = false } = {}
       ? `<button class="${cls}" data-a="cal-day" data-k="${k}" aria-label="${d} de ${MONTHS[month]}">${numbers ? d : ''}</button>`
       : `<span class="${cls}">${numbers ? d : ''}</span>`;
   }
-  return `<div class="cal${numbers ? '' : ' mini'}">${cells}</div>`;
+  return `<div class="cal${numbers ? '' : ' mini'}${tiny ? ' tiny' : ''}">${cells}</div>`;
 }
-const weekHeader = () => `<div class="cal cal-week">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((x) => `<span>${x}</span>`).join('')}</div>`;
-function monthCard() {
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
+/** Tarjeta horizontal y compacta del mes elegido en Tendencias */
+function monthCard(y, m) {
+  const now = new Date(); const isCur = y === now.getFullYear() && m === now.getMonth();
   const days = workoutsByDay(); const n = monthDaysTrained(days, y, m);
-  return `<button class="card tap" data-a="open-calendar">
-    <div class="row between" style="margin-bottom:8px"><b>${MONTHS[m]}</b>
-      <span class="row" style="gap:6px"><span class="c-green" style="font-family:var(--round);font-weight:600">${n} ${n === 1 ? 'día' : 'días'}</span>${ICON.chev}</span></div>
-    ${weekHeader()}${monthGrid(y, m, days, { numbers: true })}
+  const of = isCur ? now.getDate() : new Date(y, m + 1, 0).getDate();
+  const streak = isCur ? streakWeeks() : 0;
+  return `<button class="card tap month-mini" data-a="open-calendar" data-y="${y}">
+    <div class="grow">
+      <div class="mm-n c-green">${n}<small> ${n === 1 ? 'día' : 'días'}</small></div>
+      <div class="muted xs">entrenados de ${of} días${isCur ? ' transcurridos' : ''}</div>
+      ${streak ? `<div class="xs mm-streak">🔥 ${streak} ${streak === 1 ? 'semana seguida' : 'semanas seguidas'}</div>` : ''}
+    </div>
+    ${monthGrid(y, m, days, { tiny: true })}${ICON.chev}
   </button>`;
+}
+/** Totales de un mes. uptoDay: contar solo hasta ese día (para comparar meses en curso de forma justa) */
+function monthStats(y, m, uptoDay = 0) {
+  const a = new Date(y, m, 1).getTime();
+  const b = uptoDay ? Math.min(new Date(y, m + 1, 1).getTime(), new Date(y, m, uptoDay + 1).getTime()) : new Date(y, m + 1, 1).getTime();
+  const ws = db.workouts.filter((w) => w.start >= a && w.start < b);
+  return {
+    ws, count: ws.length,
+    mins: Math.round(ws.reduce((t, w) => t + (w.end - w.start), 0) / 60000),
+    vol: ws.reduce((v, w) => v + workoutVolume(w), 0),
+    sets: ws.reduce((n, w) => n + workoutSets(w), 0),
+  };
+}
+/** Cambio frente al mes anterior: porcentaje o diferencia absoluta */
+function deltaTag(cur, prev, pct) {
+  if (!prev && !cur) return '<span class="delta">—</span>';
+  if (!prev) return '<span class="delta up">Nuevo</span>';
+  const diff = cur - prev;
+  if (Math.abs(diff) < 1e-9) return '<span class="delta">= igual</span>';
+  const txt = pct ? `${Math.round((diff / prev) * 100)}%` : fmtN(Math.abs(diff), 0);
+  return `<span class="delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'} ${pct ? txt.replace('-', '') : txt}</span>`;
+}
+const fmtMins = (mins) => (mins >= 60 ? `${Math.floor(mins / 60)}<small>H</small> ${mins % 60}<small>MIN</small>` : `${mins}<small>MIN</small>`);
+const fmtVol = (kg) => (kg >= 10000 ? `${fmtN(kg / 1000)}<small>T</small>` : `${fmtN(kg, 0)}<small>KG</small>`);
+/** Sección Tendencias: mes elegido + comparación con el anterior */
+function trendsSection() {
+  const now = new Date();
+  const firstTs = db.workouts.length ? Math.min(...db.workouts.map((w) => w.start)) : Date.now();
+  const first = new Date(firstTs); const minIdx = first.getFullYear() * 12 + first.getMonth();
+  const maxIdx = now.getFullYear() * 12 + now.getMonth();
+  if (ui.trend == null || ui.trend > maxIdx) ui.trend = maxIdx;
+  if (ui.trend < minIdx) ui.trend = minIdx;
+  const y = Math.floor(ui.trend / 12); const m = ui.trend % 12;
+  const isCur = ui.trend === maxIdx;
+  const py = m ? y : y - 1; const pm = m ? m - 1 : 11;
+  const cur = monthStats(y, m);
+  const prev = monthStats(py, pm, isCur ? now.getDate() : 0);
+  const vs = `con ${MONTHS[pm].toLowerCase()}${isCur ? ` hasta el día ${now.getDate()}` : ''}`;
+  const arrow = (dir, ok) => `<button class="nav-btn" ${ok ? `data-a="trend-month" data-d="${dir}"` : 'disabled style="opacity:.25"'} aria-label="${dir < 0 ? 'Mes anterior' : 'Mes siguiente'}">${dir < 0 ? ICON.back : ICON.back.replace('<svg', '<svg style="transform:scaleX(-1)"')}</button>`;
+  const metricD = (label, value, color, delta) => `<div class="metric"><span>${label}</span><b class="${color}">${value}</b>${delta}</div>`;
+  return `
+    <div class="row between trend-head"><h2>Tendencias</h2>
+      <div class="row month-nav">${arrow(-1, ui.trend > minIdx)}<span>${MONTHS[m]}${y !== now.getFullYear() ? ` ${y}` : ''}</span>${arrow(1, !isCur)}</div></div>
+    ${monthCard(y, m)}
+    <div class="metrics">
+      ${metricD('Entrenamientos', cur.count, 'c-pink', deltaTag(cur.count, prev.count, false))}
+      ${metricD('Tiempo', fmtMins(cur.mins), 'c-yellow', deltaTag(cur.mins, prev.mins, true))}
+      ${metricD('Volumen', fmtVol(cur.vol), 'c-cyan', deltaTag(cur.vol, prev.vol, true))}
+      ${metricD('Series', cur.sets, 'c-green', deltaTag(cur.sets, prev.sets, false))}
+    </div>
+    <div class="foot" style="margin:-4px 0 12px">Comparado ${vs}.</div>
+    ${muscleSplit(cur.ws, MONTHS[m])}`;
 }
 function feelCard(w) {
   return `<div class="card"><div class="xs muted" style="font-weight:600;margin-bottom:8px">¿CÓMO TE SENTISTE?</div>
@@ -311,8 +368,6 @@ const metric = (label, value, unit, color) => `<div class="metric"><span>${label
 const TABS = {
   perfil() {
     const ws = db.workouts;
-    const totalVol = ws.reduce((v, w) => v + workoutVolume(w), 0);
-    const totalTime = ws.reduce((t, w) => t + ((w.end || w.start) - w.start), 0);
     const weekStart = startOfWeek(Date.now());
     const weeks = [];
     for (let i = 9; i >= 0; i--) {
@@ -330,16 +385,8 @@ const TABS = {
       <div class="group">
         <button class="cell" data-a="open-profile"><span class="grow"><div>Perfil y objetivo</div><div class="muted xs">${esc(db.profile.goal || 'Sin completar')}</div></span>${ICON.chev}</button>
       </div>
-      <h2>Tendencias</h2>
-      ${monthCard()}
-      <div class="metrics">
-        ${metric('Entrenamientos', ws.length, '', 'c-pink')}
-        ${metric('Semanas seguidas', streakWeeks(), '', 'c-green')}
-        ${metric('Volumen total', fmtN(totalVol / 1000), 'T', 'c-cyan')}
-        ${metric('Tiempo total', Math.round(totalTime / 36e5), 'H', 'c-yellow')}
-      </div>
+      ${trendsSection()}
       <div class="card"><div class="xs muted" style="font-weight:600;margin-bottom:6px">ENTRENAMIENTOS POR SEMANA</div>${barChart(weeks)}</div>
-      ${muscleSplit()}
       <div class="sec">Metas semanales</div>
       <div class="group">
         ${goalCell('Entrenamientos', 'goal', st.goal, 1, '')}
@@ -434,15 +481,15 @@ function workoutCard(w) {
       <div class="muted xs" style="margin:8px 0 0 50px">${ex}${prs ? ` <span class="pr">· 🏆 ${prs}</span>` : ''}${w.feel ? ` · ${FEELS[w.feel - 1][0]}` : ''}</div>
     </button>`;
 }
-function muscleSplit() {
-  const since = Date.now() - 30 * 864e5; const cnt = {};
-  db.workouts.filter((w) => w.start >= since).forEach((w) => w.exercises.forEach((e) => {
+function muscleSplit(list, label) {
+  const cnt = {};
+  list.forEach((w) => w.exercises.forEach((e) => {
     const m = exById(e.exerciseId)?.muscle || 'Otro'; cnt[m] = (cnt[m] || 0) + e.sets.length;
   }));
   const rows = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
   if (!rows.length) return '';
   const max = rows[0][1];
-  return `<div class="card"><div class="xs muted" style="font-weight:600;margin-bottom:6px">SERIES POR MÚSCULO · 30 DÍAS</div>${rows.map(([m, n]) => `
+  return `<div class="card"><div class="xs muted" style="font-weight:600;margin-bottom:6px">SERIES POR MÚSCULO · ${esc(label.toUpperCase())}</div>${rows.map(([m, n]) => `
     <div style="margin:8px 0"><div class="row between small"><span>${esc(m)}</span><span class="c-green" style="font-family:var(--round);font-weight:600">${n}</span></div>
     <div style="height:6px;background:rgba(164,245,60,.15);border-radius:4px;margin-top:4px"><div style="height:100%;width:${(n / max) * 100}%;background:var(--green);border-radius:4px"></div></div></div>`).join('')}</div>`;
 }
@@ -1104,7 +1151,8 @@ document.addEventListener('click', async (ev) => {
     case 'rir': { const s = w.exercises[ei].sets[si]; s.rir = +d.v; ui.askRir = null; haptic(); save(); render(); break; }
     case 'rir-skip': ui.askRir = null; render(); break;
     case 'open-profile': go({ type: 'profile' }); break;
-    case 'open-calendar': ui.calYear = new Date().getFullYear(); go({ type: 'calendar' }); break;
+    case 'open-calendar': ui.calYear = +d.y || new Date().getFullYear(); go({ type: 'calendar' }); break;
+    case 'trend-month': ui.trend += +d.d; render(); break;
     case 'cal-year': ui.calYear += +d.d; ui.anim = 'fade'; render(); break;
     case 'cal-day': {
       const list = (workoutsByDay().get(d.k) || []).sort((a, b) => a.start - b.start);

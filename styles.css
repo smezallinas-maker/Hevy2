@@ -335,3 +335,21 @@ textarea.area { display: block; background: none; border-radius: 0; min-height: 
 .cal:not(.mini) .cal-d.today { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3px var(--text); }
 .cal-week { margin-bottom: 4px !important; }
 .cal-week span { font-size: 10px; }
+
+/* Tendencias por mes */
+.trend-head { margin: 26px 0 10px; }
+.trend-head h2 { margin: 0; }
+.month-nav { gap: 0; }
+.month-nav span { font-size: 15px; font-weight: 600; min-width: 86px; text-align: center; }
+.month-nav .nav-btn { height: 32px; padding: 0 4px; }
+.month-nav svg { width: 20px; height: 20px; }
+.month-mini { display: flex; align-items: center; gap: 14px; padding: 12px 14px 12px 16px; }
+.mm-n { font-family: var(--round); font-size: 30px; font-weight: 700; line-height: 1.05; }
+.mm-n small { font-size: 15px; font-weight: 600; }
+.mm-streak { margin-top: 6px; }
+.cal.tiny { grid-template-columns: repeat(7, 11px); gap: 3px; flex: none; }
+.cal.tiny .cal-d { border-radius: 3px; }
+.cal.tiny .cal-d.today { box-shadow: 0 0 0 1px var(--surface), 0 0 0 2.5px var(--text); }
+.metric .delta { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 2px; font-family: var(--round); }
+.metric .delta.up { color: var(--green); }
+.metric .delta.down { color: var(--pink); }
