@@ -329,3 +329,9 @@ textarea.area { display: block; background: none; border-radius: 0; min-height: 
 .month-card b { font-size: 15px; }
 .month-card.future { opacity: .45; }
 .month-n { font-family: var(--round); font-weight: 700; font-size: 15px; }
+/* Mes en Resumen: versión compacta */
+.cal:not(.mini) { max-width: 252px; margin: 0 auto; gap: 4px; }
+.cal:not(.mini) .cal-d { border-radius: 7px; font-size: 12px; }
+.cal:not(.mini) .cal-d.today { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3px var(--text); }
+.cal-week { margin-bottom: 4px !important; }
+.cal-week span { font-size: 10px; }

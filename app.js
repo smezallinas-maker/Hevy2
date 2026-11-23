@@ -294,7 +294,7 @@ function monthCard() {
   const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
   const days = workoutsByDay(); const n = monthDaysTrained(days, y, m);
   return `<button class="card tap" data-a="open-calendar">
-    <div class="row between" style="margin-bottom:10px"><b>${MONTHS[m]}</b>
+    <div class="row between" style="margin-bottom:8px"><b>${MONTHS[m]}</b>
       <span class="row" style="gap:6px"><span class="c-green" style="font-family:var(--round);font-weight:600">${n} ${n === 1 ? 'día' : 'días'}</span>${ICON.chev}</span></div>
     ${weekHeader()}${monthGrid(y, m, days, { numbers: true })}
   </button>`;
