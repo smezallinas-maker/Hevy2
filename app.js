@@ -202,7 +202,7 @@ const ui = {
 function go(screen) { ui.stack.push(screen); ui.anim = 'push'; render(); window.scrollTo(0, 0); }
 function back() { ui.stack.pop(); ui.anim = 'pop'; render(); window.scrollTo(0, 0); }
 
-const SCREEN_TITLES = { workout: 'Entrenamiento', detail: 'Resumen', exercise: 'Ejercicio', routine: 'Rutina', profile: 'Perfil' };
+const SCREEN_TITLES = { workout: 'Entrenamiento', detail: 'Resumen', exercise: 'Ejercicio', routine: 'Rutina', profile: 'Perfil', calendar: 'Calendario' };
 function backLabel() {
   const prev = ui.stack[ui.stack.length - 2];
   return prev ? SCREEN_TITLES[prev.type] : TAB_TITLES[ui.tab];
@@ -259,6 +259,46 @@ function weekRingsCard() {
       <div style="margin:0"><span>Series</span><b class="c-cyan">${w.sets}/${st.goalSets}</b></div>
     </div></div>`;
 }
+/* ---------- calendario (se calcula de los entrenamientos guardados) ---------- */
+const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+/** Mapa día → entrenamientos de ese día */
+function workoutsByDay() {
+  const m = new Map();
+  db.workouts.forEach((w) => { const k = dayKey(w.start); if (!m.has(k)) m.set(k, []); m.get(k).push(w); });
+  return m;
+}
+function monthDaysTrained(days, year, month) {
+  let n = 0; const total = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= total; d++) if (days.has(`${year}-${month}-${d}`)) n++;
+  return n;
+}
+/** Cuadrícula de un mes (lunes a domingo). numbers: mostrar el número del día; tappable: los días entrenados abren el entrenamiento */
+function monthGrid(year, month, days, { numbers = false, tappable = false } = {}) {
+  const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const total = new Date(year, month + 1, 0).getDate();
+  const todayK = dayKey(Date.now());
+  const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+  let cells = '<span class="cal-d empty"></span>'.repeat(offset);
+  for (let d = 1; d <= total; d++) {
+    const k = `${year}-${month}-${d}`; const on = days.has(k);
+    const cls = `cal-d${on ? ' on' : ''}${k === todayK ? ' today' : ''}${new Date(year, month, d) > endToday ? ' future' : ''}`;
+    cells += tappable && on
+      ? `<button class="${cls}" data-a="cal-day" data-k="${k}" aria-label="${d} de ${MONTHS[month]}">${numbers ? d : ''}</button>`
+      : `<span class="${cls}">${numbers ? d : ''}</span>`;
+  }
+  return `<div class="cal${numbers ? '' : ' mini'}">${cells}</div>`;
+}
+const weekHeader = () => `<div class="cal cal-week">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((x) => `<span>${x}</span>`).join('')}</div>`;
+function monthCard() {
+  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
+  const days = workoutsByDay(); const n = monthDaysTrained(days, y, m);
+  return `<button class="card tap" data-a="open-calendar">
+    <div class="row between" style="margin-bottom:10px"><b>${MONTHS[m]}</b>
+      <span class="row" style="gap:6px"><span class="c-green" style="font-family:var(--round);font-weight:600">${n} ${n === 1 ? 'día' : 'días'}</span>${ICON.chev}</span></div>
+    ${weekHeader()}${monthGrid(y, m, days, { numbers: true })}
+  </button>`;
+}
 function feelCard(w) {
   return `<div class="card"><div class="xs muted" style="font-weight:600;margin-bottom:8px">¿CÓMO TE SENTISTE?</div>
     <div class="feel">${FEELS.map(([e, l], i) => `<button class="${w.feel === i + 1 ? 'on' : ''}" data-a="feel" data-id="${w.id}" data-v="${i + 1}"><span class="e">${e}</span><span>${l}</span></button>`).join('')}</div>
@@ -291,6 +331,7 @@ const TABS = {
         <button class="cell" data-a="open-profile"><span class="grow"><div>Perfil y objetivo</div><div class="muted xs">${esc(db.profile.goal || 'Sin completar')}</div></span>${ICON.chev}</button>
       </div>
       <h2>Tendencias</h2>
+      ${monthCard()}
       <div class="metrics">
         ${metric('Entrenamientos', ws.length, '', 'c-pink')}
         ${metric('Semanas seguidas', streakWeeks(), '', 'c-green')}
@@ -529,6 +570,37 @@ const SCREENS = {
           <div class="row between"><span class="muted xs" style="font-weight:600;text-transform:uppercase">${esc(fmtShort(s.date))}</span>${ICON.chev}</div>
           ${s.sets.map((x, i) => `<div class="dset"><span class="n">${x.t === 'c' ? 'C' : x.t === 'f' ? 'F' : i + 1}</span><span>${setText(x, ex.type)}${rirTag(x) ? ` <span class="muted xs">· ${rirTag(x)}</span>` : ''}</span></div>`).join('')}
         </button>`).join('')}`}`;
+  },
+
+  calendar() {
+    const thisYear = new Date().getFullYear();
+    const firstYear = db.workouts.length ? Math.min(...db.workouts.map((w) => new Date(w.start).getFullYear())) : thisYear;
+    const y = ui.calYear = Math.min(thisYear, Math.max(firstYear, ui.calYear || thisYear));
+    const days = workoutsByDay();
+    const yearWs = db.workouts.filter((w) => new Date(w.start).getFullYear() === y);
+    const perMonth = MONTHS.map((_, m) => monthDaysTrained(days, y, m));
+    const daysTrained = perMonth.reduce((a, b) => a + b, 0);
+    const best = Math.max(...perMonth);
+    const bestMonth = best ? MONTHS[perMonth.indexOf(best)] : '—';
+    // semanas transcurridas del año (para el promedio)
+    const end = y === thisYear ? Date.now() : new Date(y, 11, 31, 23, 59).getTime();
+    const weeks = Math.max(1, (end - new Date(y, 0, 1).getTime()) / (7 * 864e5));
+    const arrow = (dir, enabled) => `<button class="nav-btn" ${enabled ? `data-a="cal-year" data-d="${dir}"` : 'disabled style="opacity:.25"'} aria-label="${dir < 0 ? 'Año anterior' : 'Año siguiente'}">${dir < 0 ? ICON.back : ICON.back.replace('<svg', '<svg style="transform:scaleX(-1)"')}</button>`;
+    return `
+      ${navBar({ title: 'Calendario', backBtn: true })}
+      <div class="row between year-nav">${arrow(-1, y > firstYear)}<span class="year-t">${y}</span>${arrow(1, y < thisYear)}</div>
+      <div class="metrics">
+        ${metric('Días entrenados', daysTrained, '', 'c-green')}
+        ${metric('Entrenamientos', yearWs.length, '', 'c-pink')}
+        ${metric('Promedio semanal', fmtN(yearWs.length / weeks), '', 'c-cyan')}
+        ${metric('Mejor mes', best ? `${esc(bestMonth.slice(0, 3))} · ${best}` : '—', '', 'c-yellow')}
+      </div>
+      <div class="year-grid">${MONTHS.map((name, m) => `
+        <div class="month-card${y === thisYear && m > new Date().getMonth() ? ' future' : ''}">
+          <div class="row between" style="margin-bottom:8px"><b>${name}</b>${perMonth[m] ? `<span class="c-green month-n">${perMonth[m]}</span>` : ''}</div>
+          ${monthGrid(y, m, days, { tappable: true })}
+        </div>`).join('')}</div>
+      <div class="foot" style="margin-top:12px">Toca un día en verde para ver ese entrenamiento.</div>`;
   },
 
   profile() {
@@ -1032,6 +1104,17 @@ document.addEventListener('click', async (ev) => {
     case 'rir': { const s = w.exercises[ei].sets[si]; s.rir = +d.v; ui.askRir = null; haptic(); save(); render(); break; }
     case 'rir-skip': ui.askRir = null; render(); break;
     case 'open-profile': go({ type: 'profile' }); break;
+    case 'open-calendar': ui.calYear = new Date().getFullYear(); go({ type: 'calendar' }); break;
+    case 'cal-year': ui.calYear += +d.d; ui.anim = 'fade'; render(); break;
+    case 'cal-day': {
+      const list = (workoutsByDay().get(d.k) || []).sort((a, b) => a.start - b.start);
+      if (list.length === 1) go({ type: 'detail', id: list[0].id });
+      else if (list.length > 1) {
+        const [yy, mm, dd] = d.k.split('-').map(Number);
+        openSheet({ type: 'menu', title: `${dd} de ${MONTHS[mm].toLowerCase()} de ${yy}`, items: list.map((w) => ({ label: `${w.name} · ${fmtTime(w.start)}`, run: () => go({ type: 'detail', id: w.id }) })) });
+      }
+      break;
+    }
     case 'feel': {
       const wk = db.workouts.find((x) => x.id === d.id);
       if (wk.feel === +d.v) delete wk.feel; else wk.feel = +d.v;

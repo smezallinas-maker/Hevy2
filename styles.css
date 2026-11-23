@@ -307,3 +307,25 @@ body.has-rest #app { padding-bottom: calc(160px + var(--safe-b)); }
 /* Perfil */
 textarea.area { display: block; background: none; border-radius: 0; min-height: 84px; padding: 12px 16px; resize: vertical; font-size: 17px; }
 .field-cell .pill { flex: none; }
+
+/* Calendario */
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-d { aspect-ratio: 1; border-radius: 8px; background: rgba(164, 245, 60, .09); display: grid; place-items: center; font-family: var(--round); font-size: 13px; font-weight: 500; color: var(--muted); padding: 0; }
+.cal-d.on { background: var(--green); color: var(--green-ink); font-weight: 700; }
+.cal-d.today { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.cal-d.future { opacity: .35; }
+.cal-d.empty { background: none; }
+.cal-week { margin-bottom: 5px; }
+.cal-week span { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); }
+.cal.mini { gap: 3px; }
+.cal.mini .cal-d { border-radius: 4px; background: rgba(164, 245, 60, .1); }
+.cal.mini .cal-d.on { background: var(--green); }
+.cal.mini .cal-d.today { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3px var(--text); }
+.cal.mini .cal-d.empty { background: none; }
+.year-nav { margin: -4px 0 8px; }
+.year-t { font-family: var(--round); font-size: 22px; font-weight: 700; }
+.year-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.month-card { background: var(--surface); border-radius: 14px; padding: 12px; }
+.month-card b { font-size: 15px; }
+.month-card.future { opacity: .45; }
+.month-n { font-family: var(--round); font-weight: 700; font-size: 15px; }
